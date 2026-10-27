@@ -29,7 +29,7 @@ object Weather {
         val conn = URI(url).toURL().openConnection() as HttpURLConnection
         conn.connectTimeout = 10_000
         conn.readTimeout = 10_000
-        conn.setRequestProperty("User-Agent", "Larksong-Windows")
+        conn.setRequestProperty("User-Agent", "Larksong-Desktop")
         try {
             return conn.inputStream.bufferedReader().use { it.readText() }
         } finally {

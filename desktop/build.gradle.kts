@@ -29,6 +29,8 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.adamglassner.larksong.MainKt"
+        // macOS: follow the system's light/dark mode for the window title bar.
+        jvmArgs += listOf("-Dapple.awt.application.appearance=system")
 
         nativeDistributions {
             targetFormats(TargetFormat.Exe, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm)
@@ -48,6 +50,15 @@ compose.desktop {
                 perUserInstall = true
                 // Keep this constant so new versions upgrade the installed one.
                 upgradeUuid = "73abb75d-d1fb-4bf2-a2f8-7d38df414202"
+            }
+
+            macOS {
+                bundleID = "com.adamglassner.larksong"
+                iconFile.set(project.file("icons/larksong.icns"))
+                dockName = "Larksong"
+                appCategory = "public.app-category.utilities"
+                // jpackage on macOS needs a version whose first number is at least 1 (ours is).
+                packageVersion = appVersion
             }
 
             linux {

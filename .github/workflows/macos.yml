@@ -1,0 +1,94 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "desktop/**"
+      - "version.properties"
+      - ".github/workflows/macos.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # Apple Silicon (arm64) runner, so the app runs natively on M-series Macs.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          architecture: aarch64
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.14.3
+
+      - name: Read version
+        run: echo "V=$(grep '^version=' version.properties | cut -d= -f2 | tr -d '[:space:]')" >> "$GITHUB_ENV"
+
+      - name: Build the app
+        run: |
+          set -o pipefail
+          gradle -p desktop createDistributable --no-daemon --stacktrace 2>&1 | tee build.log
+          ls -la desktop/build/compose/binaries/main/app
+
+      # There's no Apple Developer ID yet, so the app is signed "ad hoc" (Apple Silicon won't run
+      # unsigned code at all). macOS asks once before opening it; see the release notes.
+      - name: Sign (ad hoc) and make the disk image
+        run: |
+          APP="desktop/build/compose/binaries/main/app/Larksong.app"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP" && echo "signature ok"
+          lipo -archs "$APP/Contents/runtime/Contents/Home/lib/libjvm.dylib" 2>/dev/null || file "$APP/Contents/runtime/Contents/Home/lib/server/libjvm.dylib"
+          mkdir -p dmg out
+          cp -R "$APP" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "Larksong" -srcfolder dmg -ov -format UDZO "out/Larksong-$V-arm64.dmg"
+          ls -la out
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete "macos-v$V" --yes --cleanup-tag || true
+          gh release create "macos-v$V" "out/Larksong-$V-arm64.dmg" --latest=false \
+            --title "Larksong $V for macOS (Apple Silicon)" \
+            --notes "For Macs with Apple Silicon (M1 and newer), macOS 12 or later. Built from ${GITHUB_SHA::7}.
+
+          To install: open Larksong-$V-arm64.dmg and drag Larksong into Applications.
+
+          The first time you open it, macOS says it can't check the app for malicious software (it isn't notarized by Apple yet). Open System Settings → Privacy & Security, scroll down and click **Open Anyway** next to Larksong (on older macOS: right-click Larksong in Applications and choose Open). You only need to do this once."
+
+      # latest.json tells the app's update button about this version without using GitHub's
+      # rate-limited API (read from raw.githubusercontent.com).
+      - name: Save to builds-macos branch
+        run: |
+          cd out
+          f="Larksong-$V-arm64.dmg"
+          size=$(wc -c < "$f" | tr -d ' ')
+          base="https://github.com/${{ github.repository }}"
+          printf '{"version":"%s","title":"Larksong %s for macOS","page":"%s/releases/tag/macos-v%s","assets":[{"name":"%s","url":"%s/releases/download/macos-v%s/%s","size":%s}]}\n' \
+            "$V" "$V" "$base" "$V" "$f" "$base" "$V" "$f" "$size" > latest.json
+          cat latest.json
+          git init -q -b builds-macos
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add latest.json
+          git commit -q -m "macOS $V from ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" builds-macos
+
+      - name: Save failure log
+        if: failure()
+        run: |
+          mkdir faillog && (cp build.log faillog/ 2>/dev/null || echo "no log" > faillog/build.log) && cd faillog
+          git init -q -b ci-log-macos
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add . && git commit -q -m "Failed build log"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci-log-macos

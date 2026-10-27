@@ -72,6 +72,7 @@ object Updater {
         "android-v" -> "https://raw.githubusercontent.com/$REPO/builds/latest.json"
         "windows-v" -> "https://raw.githubusercontent.com/$REPO/builds-windows/latest.json"
         "linux-v" -> "https://raw.githubusercontent.com/$REPO/builds-linux/latest.json"
+        "macos-v" -> "https://raw.githubusercontent.com/$REPO/builds-macos/latest.json"
         else -> null
     }
 

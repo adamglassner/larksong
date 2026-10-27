@@ -93,6 +93,14 @@ fun main(args: Array<String>) {
     com.adamglassner.larksong.sleep.SleepSounds.output = com.adamglassner.larksong.sleep.DesktopSleepOutput()
     com.adamglassner.larksong.sleep.SleepSounds.restore()
     Radio.restoreLastStation()
+    if (Platform.isMac) {
+        // Clicking Larksong in the Dock brings the window back after it was closed to the menu bar.
+        runCatching {
+            java.awt.Desktop.getDesktop().addAppEventListener(object : java.awt.desktop.AppReopenedListener {
+                override fun appReopened(e: java.awt.desktop.AppReopenedEvent?) { showRequests.value += 1 }
+            })
+        }
+    }
     val startInTray = "--tray" in args
     val ui = AppUi()
 
@@ -112,8 +120,8 @@ fun main(args: Array<String>) {
 
         LaunchedEffect(requests) { if (requests > 0) visible = true }
         val notify: (String, String) -> Unit = { title, text ->
-            if (Platform.hasTray) trayState.sendNotification(Notification(title, text, Notification.Type.Info))
-            else Platform.notifyDesktop(title, text)
+            if (Platform.prefersSystemNotifications || !Platform.hasTray) Platform.notifyDesktop(title, text)
+            else trayState.sendNotification(Notification(title, text, Notification.Type.Info))
         }
         LaunchedEffect(Unit) {
             Scheduler.loop(notify) { a, at ->

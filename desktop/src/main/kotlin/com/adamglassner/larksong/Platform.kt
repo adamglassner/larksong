@@ -6,20 +6,29 @@ import java.awt.SystemTray
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-/** Everything that differs between Windows and Linux lives here. */
+/** Everything that differs between Windows, macOS and Linux lives here. */
 object Platform {
     private val os = System.getProperty("os.name").lowercase()
     val isWindows = os.contains("win")
+    val isMac = os.contains("mac")
     val isLinux = os.contains("linux")
 
-    /** "Windows" or "Linux", for labels. */
-    val name: String get() = if (isWindows) "Windows" else "Linux"
+    /** "Windows", "macOS" or "Linux", for labels. */
+    val name: String get() = if (isWindows) "Windows" else if (isMac) "macOS" else "Linux"
+
+    /** What to call the computer in messages ("PC" on Windows, "Mac" on macOS). */
+    val computer: String get() = if (isWindows) "PC" else if (isMac) "Mac" else "computer"
+
+    /** Where the notification-area icon lives, for messages. */
+    val trayPlace: String get() = if (isMac) "the menu bar" else "the notification area"
 
     fun dataDir(): File {
+        val home = System.getProperty("user.home")
         val base = when {
             isWindows -> System.getenv("APPDATA")?.let { File(it) }
+            isMac -> File(home, "Library/Application Support")
             else -> System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }?.let { File(it) }
-        } ?: File(System.getProperty("user.home"), ".config")
+        } ?: File(home, ".config")
         val dir = File(base, "Larksong")
         if (!dir.exists()) {
             // Bring over alarms and settings from before the app was renamed (it was called Daybreak).
@@ -29,7 +38,7 @@ object Platform {
         return dir.apply { mkdirs() }
     }
 
-    /** The installed launcher (Larksong.exe or /opt/larksong/bin/Larksong); null in a dev build. */
+    /** The installed launcher (Larksong.exe, Larksong.app/Contents/MacOS/Larksong or /opt/larksong/bin/Larksong); null in a dev build. */
     private val appExe: String? get() = System.getProperty("jpackage.app-path")
 
     /** The app icon installed with the Linux package (a PNG in its lib folder), for notifications and autostart. */
@@ -51,7 +60,11 @@ object Platform {
             return File(config, "autostart/larksong.desktop")
         }
 
-    val canAutostart: Boolean get() = appExe != null && (isWindows || isLinux)
+    /** macOS: a login item (a LaunchAgent in ~/Library/LaunchAgents). */
+    private val launchAgent: File
+        get() = File(System.getProperty("user.home"), "Library/LaunchAgents/com.adamglassner.larksong.plist")
+
+    val canAutostart: Boolean get() = appExe != null
 
     private fun run(vararg cmd: String): Int = runCatching {
         val p = ProcessBuilder(*cmd).redirectErrorStream(true).start()
@@ -62,6 +75,7 @@ object Platform {
     fun isAutostartOn(): Boolean = when {
         !canAutostart -> false
         isWindows -> run("reg", "query", RUN_KEY, "/v", "Larksong") == 0
+        isMac -> launchAgent.isFile
         else -> autostartFile.isFile
     }
 
@@ -70,6 +84,29 @@ object Platform {
         if (isWindows) {
             if (on) run("reg", "add", RUN_KEY, "/v", "Larksong", "/t", "REG_SZ", "/d", "\"$exe\" --tray", "/f")
             else run("reg", "delete", RUN_KEY, "/v", "Larksong", "/f")
+        } else if (isMac) {
+            val f = launchAgent
+            if (on) {
+                runCatching {
+                    f.parentFile.mkdirs()
+                    f.writeText(
+                        """
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                        <plist version="1.0">
+                        <dict>
+                            <key>Label</key><string>com.adamglassner.larksong</string>
+                            <key>ProgramArguments</key>
+                            <array><string>${xml(exe)}</string><string>--tray</string></array>
+                            <key>RunAtLoad</key><true/>
+                        </dict>
+                        </plist>
+                        """.trimIndent() + "\n",
+                    )
+                }
+            } else {
+                f.delete()
+            }
         } else {
             val f = autostartFile
             if (on) {
@@ -93,10 +130,21 @@ object Platform {
         }
     }
 
-    // ---------- notifications (Linux without a tray icon) ----------
+    private fun xml(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-    fun notifyDesktop(title: String, text: String): Boolean =
-        isLinux && run("notify-send", "--app-name=Larksong", "--icon=$linuxIcon", title, text) == 0
+    // ---------- notifications (macOS, and Linux without a tray icon) ----------
+
+    /** On macOS, notifications go through Notification Center; the tray's own balloons don't show there. */
+    val prefersSystemNotifications: Boolean get() = isMac
+
+    fun notifyDesktop(title: String, text: String): Boolean = when {
+        isMac -> {
+            fun q(s: String) = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+            run("osascript", "-e", "display notification ${q(text)} with title ${q(title)}") == 0
+        }
+        isLinux -> run("notify-send", "--app-name=Larksong", "--icon=$linuxIcon", title, text) == 0
+        else -> false
+    }
 
     // ---------- sounds ----------
 
@@ -126,10 +174,14 @@ object Platform {
         return if (save && !name.lowercase().endsWith(".json")) File(dir, "$name.json") else f
     }
 
-    val systemSoundsLabel: String get() = if (isWindows) "Windows sounds" else "System sounds"
+    val systemSoundsLabel: String get() = if (isWindows) "Windows sounds" else if (isMac) "macOS sounds" else "System sounds"
 
     /** The system's own WAV sounds: C:\Windows\Media, or /usr/share/sounds on Linux. */
     fun systemSounds(): List<File> {
+        if (isMac) {
+            return File("/System/Library/Sounds").listFiles { f -> f.isFile && f.extension.lowercase() in setOf("aiff", "aif", "wav") }
+                ?.sortedBy { it.name.lowercase() } ?: emptyList()
+        }
         if (isWindows) {
             val media = File(System.getenv("WINDIR") ?: "C:\\Windows", "Media")
             return media.listFiles { f -> f.isFile && f.extension.equals("wav", true) }
@@ -151,16 +203,22 @@ object Platform {
     val updateAsset: String by lazy {
         when {
             isWindows -> ".exe"
+            isMac -> ".dmg"
             File("/etc/debian_version").exists() || File("/usr/bin/dpkg").exists() -> ".deb"
             else -> ".rpm"
         }
     }
-    val updateTagPrefix: String get() = if (isWindows) "windows-v" else "linux-v"
+    val updateTagPrefix: String get() = if (isWindows) "windows-v" else if (isMac) "macos-v" else "linux-v"
 
     /** Starts installing a downloaded update. Returns true if Larksong should quit now. */
     fun openInstaller(file: File): Boolean {
         if (isWindows) {
             ProcessBuilder(file.absolutePath).start()
+            return true
+        }
+        if (isMac) {
+            // Opens the disk image in Finder; drag Larksong into Applications to replace this one.
+            ProcessBuilder("open", file.absolutePath).start()
             return true
         }
         // Hand the package to the desktop's software installer (GNOME Software, Discover, …).

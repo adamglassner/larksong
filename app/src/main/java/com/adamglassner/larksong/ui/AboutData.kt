@@ -42,6 +42,9 @@ data class Release(val version: String, val date: String, val changes: List<Stri
 
 /** The change log shown in Settings → About → What's new (newest first). */
 val CHANGELOG = listOf(
+    Release("2.4.0", "October 2026", listOf(
+        "Larksong for macOS, for Macs with Apple Silicon: menu bar icon, macOS notifications and sounds, ⌘ shortcuts, start when you sign in",
+    )),
     Release("2.3.1", "October 2026", listOf(
         "Radio buttons reorganized: play controls, then SEEK, PRESETS and MORE",
         "PRESETS shows your saved stations by name, with Save here for the current station",

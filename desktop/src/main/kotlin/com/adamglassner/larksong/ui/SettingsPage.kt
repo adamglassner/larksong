@@ -38,6 +38,9 @@ val APP_VERSION: String by lazy {
     }.getOrNull()?.takeIf { it.isNotBlank() && !it.startsWith("$") } ?: "dev"
 }
 
+/** "Ctrl+" on Windows and Linux, "⌘" on a Mac. */
+val shortcutKey: String get() = if (Platform.isMac) "⌘" else "Ctrl+"
+
 suspend fun checkForUpdate() = Updater.check(APP_VERSION, Platform.updateTagPrefix, Platform.updateAsset)
 
 /** Runs a downloaded installer and closes Larksong so it can be replaced. */
@@ -124,8 +127,11 @@ fun SettingsPage(settings: Settings) {
             }
             SettingsCard(
                 "Closing the window",
-                if (Platform.hasTray) "Larksong keeps running in the notification area so alarms still ring. To exit, right-click its icon and choose Quit. A sleeping PC can't ring an alarm."
-                else "Closing minimizes Larksong so alarms still ring. A sleeping PC can't ring an alarm.",
+                when {
+                    Platform.isMac && Platform.hasTray -> "Larksong keeps running in the menu bar so alarms still ring. To quit, click its menu bar icon and choose Quit. A sleeping Mac can't ring an alarm."
+                    Platform.hasTray -> "Larksong keeps running in ${Platform.trayPlace} so alarms still ring. To exit, right-click its icon and choose Quit. A sleeping ${Platform.computer} can't ring an alarm."
+                    else -> "Closing minimizes Larksong so alarms still ring. A sleeping ${Platform.computer} can't ring an alarm."
+                },
                 DbIcons.Close,
             )
         }
@@ -187,7 +193,7 @@ fun SettingsPage(settings: Settings) {
         SectionTitle("About")
         SettingsCard(
             "Larksong for ${Platform.name}",
-            "Version $APP_VERSION · Weather by Open-Meteo · Radio by radio-browser.info · Keyboard: Ctrl+1–5 switch pages, Ctrl+N new alarm, Ctrl+, settings, Esc closes dialogs",
+            "Version $APP_VERSION · Weather by Open-Meteo · Radio by radio-browser.info · Keyboard: ${shortcutKey}1–5 switch pages, ${shortcutKey}N new alarm, $shortcutKey, settings, Esc closes dialogs",
             DbIcons.Alarm,
         )
         Spacer(Modifier.height(4.dp))

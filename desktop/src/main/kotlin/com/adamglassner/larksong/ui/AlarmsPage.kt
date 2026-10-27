@@ -79,7 +79,7 @@ fun AlarmsPage(settings: Settings, ui: AppUi) {
             Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(DbIcons.Alarm, null, tint = p.muted, modifier = Modifier.size(48.dp))
                 DText("No alarms yet", 18.sp, p.text, FontWeight.SemiBold)
-                DText("Add one with the button above, or press Ctrl+N.", 14.sp, p.muted)
+                DText("Add one with the button above, or press ${if (com.adamglassner.larksong.Platform.isMac) "⌘N" else "Ctrl+N"}.", 14.sp, p.muted)
             }
         } else {
             BoxWithConstraints(Modifier.fillMaxWidth()) {

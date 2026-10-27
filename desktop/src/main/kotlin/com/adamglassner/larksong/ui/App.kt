@@ -40,6 +40,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -101,7 +102,7 @@ class AppUi {
             alarmDialog = null; bedtimeDialog = false; return true
         }
         if (alarmDialog != null || bedtimeDialog) return false
-        if (e.isCtrlPressed) {
+        if (e.isCtrlPressed || (com.adamglassner.larksong.Platform.isMac && e.isMetaPressed)) {
             val pages = mainPages(Store.settings.value.style)
             val n = when (e.key) {
                 Key.One -> 0; Key.Two -> 1; Key.Three -> 2; Key.Four -> 3; Key.Five -> 4
