@@ -166,7 +166,7 @@ fun SettingsPage(settings: Settings) {
         SettingsCard(
             "Larksong $APP_VERSION",
             when (val s = update) {
-                Updater.Status.Idle -> "Check GitHub for a newer version"
+                Updater.Status.Idle -> if (Platform.managedByLauncher) "Kept up to date by Bytehawk Studio Launcher" else "Check GitHub for a newer version"
                 Updater.Status.Checking -> "Checking for updates…"
                 Updater.Status.UpToDate -> "You're up to date"
                 is Updater.Status.Available -> "Version ${s.release.version} is available"
@@ -186,7 +186,7 @@ fun SettingsPage(settings: Settings) {
                 }
                 is Updater.Status.Ready -> FButton("Install now", accent = true) { installUpdate(s.file) }
                 Updater.Status.Checking, is Updater.Status.Downloading -> {}
-                else -> FButton("Check for updates") { scope.launch { checkForUpdate() } }
+                else -> if (!Platform.managedByLauncher) FButton("Check for updates") { scope.launch { checkForUpdate() } }
             }
         }
 

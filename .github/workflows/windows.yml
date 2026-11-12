@@ -35,7 +35,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          gradle -p desktop packageExe packageMsi --no-daemon --stacktrace 2>&1 | tee build.log
+          gradle -p desktop packageExe packageMsi createDistributable --no-daemon --stacktrace 2>&1 | tee build.log
 
       - name: Collect
         shell: bash
@@ -43,6 +43,8 @@ jobs:
           mkdir out
           cp desktop/build/compose/binaries/main/exe/*.exe "out/Larksong-Setup-$V.exe"
           cp desktop/build/compose/binaries/main/msi/*.msi "out/Larksong-$V.msi"
+          # Portable zip (Larksong\Larksong.exe and its runtime), which the Bytehawk Studio Launcher installs.
+          (cd desktop/build/compose/binaries/main/app && 7z a -tzip -mx=7 "$GITHUB_WORKSPACE/out/Larksong-$V-win-x64.zip" Larksong >/dev/null)
           ls -la out
 
       - uses: actions/upload-artifact@v4
@@ -58,7 +60,7 @@ jobs:
         run: |
           gh release delete windows --yes --cleanup-tag || true
           gh release delete "windows-v$V" --yes --cleanup-tag || true
-          gh release create "windows-v$V" "out/Larksong-Setup-$V.exe" "out/Larksong-$V.msi" --latest=false \
+          gh release create "windows-v$V" "out/Larksong-Setup-$V.exe" "out/Larksong-$V.msi" "out/Larksong-$V-win-x64.zip" --latest=true \
             --title "Larksong $V for Windows" \
             --notes "Built from ${GITHUB_SHA::7}. Run Larksong-Setup-$V.exe to install or update, or use Settings → Check for updates in the app."
 

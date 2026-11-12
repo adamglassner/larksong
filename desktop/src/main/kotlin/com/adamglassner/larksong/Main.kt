@@ -133,7 +133,8 @@ fun main(args: Array<String>) {
         val alarmsNow by Store.alarms.collectAsState()
         val sleepNow by com.adamglassner.larksong.sleep.SleepSounds.state.collectAsState()
         val trayTick by com.adamglassner.larksong.ui.rememberNow(30_000L)
-        LaunchedEffect(Unit) {
+        // The Bytehawk Studio Launcher updates the copies it installed, so they don't check for themselves.
+        if (!Platform.managedByLauncher) LaunchedEffect(Unit) {
             val st = checkForUpdate()
             if (st is Updater.Status.Available) {
                 notify("Larksong ${st.release.version} is available", "Open Settings in Larksong to download and install it.")

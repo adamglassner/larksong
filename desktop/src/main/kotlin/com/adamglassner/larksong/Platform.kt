@@ -47,6 +47,11 @@ object Platform {
             ?.listFiles { f -> f.extension.equals("png", true) }?.firstOrNull()?.absolutePath ?: "alarm-clock"
     }
 
+    /** Installed and kept up to date by the Bytehawk Studio Launcher (it unpacks apps under its own folder). */
+    val managedByLauncher: Boolean by lazy {
+        appExe?.replace('/', '\\')?.contains("\\BytehawkStudio\\Launcher\\apps\\", ignoreCase = true) == true
+    }
+
     /** Whether there's a notification-area icon to fall back on when the window closes. */
     val hasTray: Boolean by lazy { runCatching { SystemTray.isSupported() }.getOrDefault(false) }
 
